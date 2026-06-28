@@ -1,0 +1,22 @@
+[project]
+name = "ask-ai"
+version = "0.1.0"
+description = "A lightweight DeepSeek assistant for shell one-shot answers and TUI chats."
+readme = "README.md"
+authors = [
+    { name = "Chr0mium24", email = "3294212389@qq.com" }
+]
+requires-python = ">=3.11"
+dependencies = [
+    "httpx>=0.28.1",
+    "rich>=15.0.0",
+    "textual>=8.2.7",
+]
+
+[project.scripts]
+ask = "ask_ai.cli:main"
+ask-ai = "ask_ai.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.11.6,<0.12.0"]
+build-backend = "uv_build"
