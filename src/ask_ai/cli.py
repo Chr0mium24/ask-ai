@@ -23,10 +23,10 @@ from ask_ai.config import config_path, delete_api_key, save_api_key
 
 
 def main() -> None:
-    raise SystemExit(asyncio.run(async_main()))
+    raise SystemExit(run())
 
 
-async def async_main() -> int:
+def run() -> int:
     args = build_parser().parse_args()
 
     if args.version:
@@ -47,6 +47,14 @@ async def async_main() -> int:
         app.run()
         return 0
 
+    return asyncio.run(_run_one_shot(args, prompt, piped_input))
+
+
+async def _run_one_shot(
+    args: argparse.Namespace,
+    prompt: str,
+    piped_input: str,
+) -> int:
     try:
         model = parse_model_key(args.model)
         messages = build_one_shot_messages(prompt, piped_input)

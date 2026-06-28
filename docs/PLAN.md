@@ -38,3 +38,15 @@ Build a lightweight DeepSeek assistant for fish/shell usage.
 - Run stdin path with missing API key to verify error handling.
 - Run login/logout checks with `ASK_CONFIG_DIR` pointed at a temporary directory.
 - If an API key is available, run one real one-shot request.
+
+## 2026-06-28 TUI Entrypoint Fix
+
+Problem: `ask` with no arguments entered the TUI path from inside
+`asyncio.run()`, while Textual's `App.run()` also starts its own event loop.
+
+Plan:
+
+- Keep command parsing and TUI dispatch synchronous.
+- Use `asyncio.run()` only for one-shot DeepSeek API calls.
+- Add a regression check that monkeypatches `AskApp.run()` and calls `cli.main()`
+  with no prompt.

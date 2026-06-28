@@ -38,3 +38,15 @@
 - Textual headless check with `AskApp.run_test()`: passed after the login update.
 - Missing key path with empty `ASK_CONFIG_DIR`: passed; printed a clear message to
   run `ask login` or set `DEEPSEEK_API_KEY`.
+
+### 2026-06-28 TUI entrypoint fix
+
+- `uv run python -m compileall src`: passed.
+- `uv run ask --version`: passed and returned `0.1.0`.
+- `uv run ask --help`: passed.
+- Missing key one-shot path with empty `ASK_CONFIG_DIR`: passed.
+- TUI dispatch regression with monkeypatched `AskApp.run()`: passed; calling
+  `cli.main()` with no prompt exited with code `0` and did not raise nested
+  event-loop errors.
+- Textual headless check with `AskApp.run_test()`: passed.
+- `fish -ic 'type -q ask; and ask --version'`: passed and returned `0.1.0`.
