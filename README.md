@@ -31,6 +31,21 @@ Open the TUI chat:
 ask
 ```
 
+TUI sessions are saved under `~/.local/share/ask-ai/sessions`. The left pane
+lists saved sessions; selecting one switches the active chat.
+
+TUI commands:
+
+```text
+/clear
+/manage
+/quit
+```
+
+`/manage` opens a checklist of conversation pairs. Checked pairs are included in
+future context; unchecked pairs stay visible in the session but are dimmed and
+ignored by future requests. Double-click a message in the chat to edit it.
+
 One-shot prompt without saving context:
 
 ```bash
@@ -63,5 +78,5 @@ ask logout
 - `flash`: `deepseek-v4-flash`
 - `pro`: `deepseek-v4-pro`
 
-The TUI keeps multi-turn context only for the current running session. One-shot
-CLI calls are stateless.
+The TUI keeps multi-turn context in persistent sessions. One-shot CLI calls are
+stateless.

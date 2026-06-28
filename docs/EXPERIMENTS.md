@@ -50,3 +50,21 @@
   event-loop errors.
 - Textual headless check with `AskApp.run_test()`: passed.
 - `fish -ic 'type -q ask; and ask --version'`: passed and returned `0.1.0`.
+
+### 2026-06-28 persistent TUI sessions
+
+- `uv run python -m compileall src`: passed.
+- `uv run ask --version`: passed and returned `0.1.0`.
+- `uv run ask --help`: passed.
+- Missing key one-shot path with empty `ASK_CONFIG_DIR`: passed.
+- Session persistence with temporary `ASK_DATA_DIR`: passed; saved sessions
+  reloaded and excluded turns stayed excluded.
+- Textual state flow with temporary `ASK_DATA_DIR`: passed; sidebar mounted,
+  `/new` created a session, `/manage` showed checked conversation pairs, excluded
+  turns left context, and `/clear` cleared messages.
+- `fish -ic 'type -q ask; and ask --version'`: passed and returned `0.1.0`.
+- TUI regression for session switch, filtered context, and message edit handler:
+  passed with a fake client and temporary `ASK_DATA_DIR`.
+- TUI fake client error path: passed; failed requests leave the input usable and
+  show the error status without a secondary UI exception.
+- TUI no-argument dispatch regression: passed with monkeypatched `AskApp.run()`.
