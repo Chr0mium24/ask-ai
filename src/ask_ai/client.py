@@ -6,6 +6,8 @@ from typing import Literal, TypedDict
 
 import httpx
 
+from ask_ai.config import load_api_key
+
 DEFAULT_BASE_URL = "https://api.deepseek.com"
 DEFAULT_SYSTEM_PROMPT = (
     "You are a concise terminal AI assistant. Match the user's language, "
@@ -42,7 +44,7 @@ class DeepSeekClient:
 
     def __post_init__(self) -> None:
         if self.api_key is None:
-            self.api_key = os.environ.get("DEEPSEEK_API_KEY")
+            self.api_key = os.environ.get("DEEPSEEK_API_KEY") or load_api_key()
         self.base_url = self.base_url.rstrip("/")
 
     @property
@@ -57,7 +59,9 @@ class DeepSeekClient:
         system_prompt: str = DEFAULT_SYSTEM_PROMPT,
     ) -> str:
         if not self.api_key:
-            raise DeepSeekError("DEEPSEEK_API_KEY is not set.")
+            raise DeepSeekError(
+                "No DeepSeek API key found. Run `ask login` or set DEEPSEEK_API_KEY."
+            )
 
         payload_messages: list[Message] = [
             {"role": "system", "content": system_prompt},

@@ -8,6 +8,8 @@
 - `uv run ask --help`
 - `uv run ask --version`
 - `printf 'hello' | uv run ask --model flash`
+- `ASK_CONFIG_DIR=$(mktemp -d) uv run ask login test-key`
+- Login config readback and logout using a temporary config directory.
 - Optional real API request if `DEEPSEEK_API_KEY` is present.
 
 ### Results
@@ -21,3 +23,18 @@
   Flash to Pro and `action_clear_chat()` completed.
 - Real DeepSeek API request: skipped because `DEEPSEEK_API_KEY` was not present in
   the environment.
+
+### 2026-06-28 login update
+
+- `uv run python -m compileall src`: passed.
+- `uv run ask --help`: passed and listed local commands `ask login` and
+  `ask logout`.
+- `uv run ask --version`: passed and returned `0.1.0`.
+- Temporary login check with `ASK_CONFIG_DIR=$(mktemp -d)`: passed.
+- Saved config permissions check: passed with mode `600`.
+- Config readback through `load_api_key()` and `DeepSeekClient()`: passed.
+- Temporary logout check: passed and removed `config.json`.
+- `fish -ic 'type -q ask; and ask --version'`: passed and returned `0.1.0`.
+- Textual headless check with `AskApp.run_test()`: passed after the login update.
+- Missing key path with empty `ASK_CONFIG_DIR`: passed; printed a clear message to
+  run `ask login` or set `DEEPSEEK_API_KEY`.

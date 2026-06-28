@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import getpass
 import os
 import sys
 from importlib.metadata import PackageNotFoundError, version
@@ -18,6 +19,7 @@ from ask_ai.client import (
     build_one_shot_messages,
     parse_model_key,
 )
+from ask_ai.config import config_path, delete_api_key, save_api_key
 
 
 def main() -> None:
@@ -30,6 +32,10 @@ async def async_main() -> int:
     if args.version:
         print(_version())
         return 0
+
+    command_result = _handle_local_command(args.prompt)
+    if command_result is not None:
+        return command_result
 
     prompt = " ".join(args.prompt).strip()
     piped_input = "" if args.tui or sys.stdin.isatty() else sys.stdin.read()
@@ -65,6 +71,7 @@ def build_parser() -> argparse.ArgumentParser:
         description=(
             "Ask DeepSeek from the shell. With no prompt and no stdin, opens the TUI."
         ),
+        epilog="Local commands: ask login, ask logout",
     )
     parser.add_argument(
         "prompt",
@@ -99,6 +106,57 @@ def build_parser() -> argparse.ArgumentParser:
         help="show version and exit",
     )
     return parser
+
+
+def _handle_local_command(prompt_parts: list[str]) -> int | None:
+    if not prompt_parts:
+        return None
+
+    command, *rest = prompt_parts
+    if command == "login":
+        return _login(rest)
+    if command == "logout":
+        return _logout(rest)
+    return None
+
+
+def _login(args: list[str]) -> int:
+    console = Console()
+    err_console = Console(stderr=True)
+
+    if len(args) > 1:
+        err_console.print("[red]error:[/red] usage: ask login [api-key]")
+        return 2
+
+    if args:
+        api_key = args[0]
+    else:
+        api_key = getpass.getpass("DeepSeek API key: ")
+
+    try:
+        path = save_api_key(api_key)
+    except ValueError as exc:
+        err_console.print(f"[red]error:[/red] {exc}")
+        return 2
+
+    console.print(f"Saved DeepSeek API key to [bold]{path}[/bold].")
+    console.print("The file permissions were set to 600.")
+    return 0
+
+
+def _logout(args: list[str]) -> int:
+    console = Console()
+    err_console = Console(stderr=True)
+
+    if args:
+        err_console.print("[red]error:[/red] usage: ask logout")
+        return 2
+
+    if delete_api_key():
+        console.print(f"Deleted DeepSeek API key from [bold]{config_path()}[/bold].")
+    else:
+        console.print(f"No saved API key found at [bold]{config_path()}[/bold].")
+    return 0
 
 
 def _version() -> str:
