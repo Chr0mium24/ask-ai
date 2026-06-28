@@ -39,6 +39,8 @@ TUI controls:
 ```text
 Tab
 /clear
+/model [flash|pro]
+/sidebar 12-40
 /quit
 ```
 
@@ -47,14 +49,26 @@ conversation pairs. Checked pairs are included in
 future context; unchecked pairs stay visible in the session but are dimmed and
 ignored by future requests. Double-click a message in the chat to edit it.
 
-The left pane has a `New` button for creating a session. The bottom bar contains
-Flash/Pro model buttons and token usage for the current session.
+Message mouse actions:
+
+- Left click copies a message.
+- Double-click edits a message.
+- Right click toggles whether that turn is included in context.
+- Ctrl+right click deletes that turn after confirmation.
+- Shift+right click opens the message action menu.
+
+The left pane has `New` and `Del` buttons for session creation and deletion.
+Token usage is shown above the input. `Ctrl+C` clears the input without exiting;
+`Ctrl+Z` restores the last cleared input.
 
 One-shot prompt without saving context:
 
 ```bash
 ask "解释一下 Python GIL"
 ```
+
+One-shot and piped calls create a new saved session automatically, so the result
+appears in the TUI session list. They still do not reuse prior history.
 
 Use stdin as context:
 

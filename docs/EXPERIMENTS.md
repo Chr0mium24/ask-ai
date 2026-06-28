@@ -19,8 +19,9 @@
 - `uv run ask --version`: passed and returned `0.1.0`.
 - `printf 'hello' | env -u DEEPSEEK_API_KEY uv run ask --model flash`: passed;
   exited with code 2 and printed `DEEPSEEK_API_KEY is not set.`
-- Textual headless check with `AskApp.run_test()`: passed; model tab changed from
-  Flash to Pro and `action_clear_chat()` completed.
+- Historical Textual headless check with `AskApp.run_test()`: passed; the
+  then-current model tab changed from Flash to Pro and `action_clear_chat()`
+  completed.
 - Real DeepSeek API request: skipped because `DEEPSEEK_API_KEY` was not present in
   the environment.
 
@@ -59,9 +60,10 @@
 - Missing key one-shot path with empty `ASK_CONFIG_DIR`: passed.
 - Session persistence with temporary `ASK_DATA_DIR`: passed; saved sessions
   reloaded and excluded turns stayed excluded.
-- Textual state flow with temporary `ASK_DATA_DIR`: passed; sidebar mounted,
-  `/new` created a session, `/manage` showed checked conversation pairs, excluded
-  turns left context, and `/clear` cleared messages.
+- Historical Textual state flow with temporary `ASK_DATA_DIR`: passed; sidebar
+  mounted, `/new` created a session, the then-current `/manage` view showed
+  checked conversation pairs, excluded turns left context, and `/clear` cleared
+  messages.
 - `fish -ic 'type -q ask; and ask --version'`: passed and returned `0.1.0`.
 - TUI regression for session switch, filtered context, and message edit handler:
   passed with a fake client and temporary `ASK_DATA_DIR`.
@@ -86,3 +88,22 @@
 - TUI fake client error path: passed.
 - `fish -ic 'type -q ask; and ask --version'`: passed and returned `0.1.0`.
 - TUI no-argument dispatch regression: passed with monkeypatched `AskApp.run()`.
+
+### 2026-06-28 TUI file split and actions
+
+- `uv run python -m compileall src`: passed.
+- TUI refactor regression with temporary `ASK_DATA_DIR`: passed; `/model`,
+  `/sidebar`, `Ctrl+C`, `Ctrl+Z`, left-click copy, right-click context toggle,
+  edit callback, confirmed conversation deletion, and confirmed session deletion
+  all behaved as expected.
+- Mouse-specific regression: passed; Ctrl+right-click opened delete confirmation,
+  and Shift+right-click opened the message action menu.
+- Final smoke checks passed: `uv run ask --help`, `uv run ask --version`,
+  missing-key one-shot path, fish wrapper version check, and no-argument TUI
+  dispatch regression.
+
+### 2026-06-28 CLI session persistence
+
+- One-shot persistence test with fake client and temporary `ASK_DATA_DIR`:
+  passed; saved a new session with user content, assistant content, model, and
+  token usage without reusing existing history.

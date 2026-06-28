@@ -16,10 +16,13 @@ from ask_ai.client import (
     MODEL_IDS,
     DeepSeekClient,
     DeepSeekError,
+    ModelKey,
+    TokenUsage,
     build_one_shot_messages,
     parse_model_key,
 )
 from ask_ai.config import config_path, delete_api_key, save_api_key
+from ask_ai.sessions import SessionStore
 
 
 def main() -> None:
@@ -59,7 +62,7 @@ async def _run_one_shot(
         model = parse_model_key(args.model)
         messages = build_one_shot_messages(prompt, piped_input)
         client = DeepSeekClient(base_url=args.base_url)
-        answer = await client.complete(
+        result = await client.complete_with_usage(
             messages,
             model=model,
             system_prompt=args.system_prompt,
@@ -69,7 +72,18 @@ async def _run_one_shot(
         return 2
 
     console = Console()
-    console.print(Markdown(answer))
+    console.print(Markdown(result.content))
+    try:
+        _save_one_shot_session(
+            messages[0]["content"],
+            result.content,
+            model,
+            result.usage,
+        )
+    except OSError as exc:
+        Console(stderr=True).print(
+            f"[yellow]warning:[/yellow] could not save session: {exc}"
+        )
     return 0
 
 
@@ -165,6 +179,24 @@ def _logout(args: list[str]) -> int:
     else:
         console.print(f"No saved API key found at [bold]{config_path()}[/bold].")
     return 0
+
+
+def _save_one_shot_session(
+    user_content: str,
+    assistant_content: str,
+    model: ModelKey,
+    token_usage: TokenUsage,
+) -> None:
+    store = SessionStore()
+    session = store.create()
+    turn_id = session.add_user_message(user_content)
+    session.add_assistant_message(
+        assistant_content,
+        turn_id=turn_id,
+        model=model,
+        token_usage=token_usage,
+    )
+    store.save(session)
 
 
 def _version() -> str:

@@ -211,6 +211,18 @@ class ChatSession:
                 message.included = included
         self.touch()
 
+    def delete_turn(self, turn_id: str) -> bool:
+        original_len = len(self.messages)
+        self.messages = [
+            message for message in self.messages if message.turn_id != turn_id
+        ]
+        deleted = len(self.messages) != original_len
+        if deleted:
+            if not self.messages:
+                self.title = "New chat"
+            self.touch()
+        return deleted
+
     def turn_included(self, turn_id: str) -> bool:
         turn_messages = [
             message for message in self.messages if message.turn_id == turn_id
@@ -321,6 +333,13 @@ class SessionStore:
         if sessions:
             return sessions[0]
         return self.create()
+
+    def delete(self, session_id: str) -> bool:
+        path = self.path_for(session_id)
+        if not path.exists():
+            return False
+        path.unlink()
+        return True
 
     def path_for(self, session_id: str) -> Path:
         return self.root / f"{session_id}{SESSION_FILE_SUFFIX}"

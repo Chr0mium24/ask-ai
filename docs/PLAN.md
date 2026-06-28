@@ -11,19 +11,26 @@ Build a lightweight DeepSeek assistant for fish/shell usage.
 - `cmd | ask "..."` sends a one-shot request with stdin as context.
 - `cmd | ask` sends stdin with a default analysis prompt.
 - One-shot mode is stateless by design.
+- One-shot and piped calls create a new saved session after a successful answer,
+  but still do not reuse prior history.
 - Only the TUI keeps multi-turn context, and that context is saved in persistent
   session files.
-- The TUI provides bottom buttons for switching between `deepseek-v4-flash` and
+- The TUI uses `/model [flash|pro]` to switch between `deepseek-v4-flash` and
   `deepseek-v4-pro`.
 - The TUI shows all saved sessions in a left sidebar and supports switching
   between them.
 - The TUI supports `/clear` and `/quit`.
+- The TUI supports `/sidebar 12-40` to adjust sidebar width.
 - `Tab` toggles between chat and manage mode.
 - Manage mode shows conversation-pair checkboxes. Unchecked pairs remain visible
   but are excluded from future model context and rendered as dimmed messages.
 - Double-clicking a message opens an editor for that message.
-- The bottom composer shows Flash/Pro model buttons and current session token
-  usage.
+- Left-clicking a message copies it; right-click toggles context inclusion;
+  Ctrl+right-click deletes the turn after confirmation; Shift+right-click opens
+  a message action menu.
+- Session deletion requires confirmation.
+- `Ctrl+C` clears the input, and `Ctrl+Z` restores the last cleared input.
+- Current session token usage is shown above the input.
 - `ask login` saves a DeepSeek API key to `~/.config/ask-ai/config.json` with
   `0600` permissions.
 - `ask logout` deletes the saved API key.
@@ -33,8 +40,12 @@ Build a lightweight DeepSeek assistant for fish/shell usage.
 - `ask_ai.client`: DeepSeek API client, model mapping, prompt assembly.
 - `ask_ai.cli`: argparse entrypoint and one-shot/TUI dispatch.
 - `ask_ai.sessions`: persistent session files and context inclusion logic.
-- `ask_ai.tui`: Textual app with session sidebar, model tabs, transcript,
-  manage view, and input.
+- `ask_ai.tui`: Textual app with session sidebar, transcript, manage view, and
+  input.
+- `ask_ai.tui_actions`: message and session actions.
+- `ask_ai.tui_screens`: edit, confirm, and message-action modal screens.
+- `ask_ai.tui_widgets`: message and session widgets.
+- `ask_ai.tui_styles`: Textual CSS for the main app.
 
 ## Configuration
 
@@ -92,3 +103,25 @@ Plan:
 - Narrow the left sidebar and add a visible `New` session button.
 - Replace `push_screen_wait()` editing with a callback-based modal flow so edits
   work from normal UI event handlers.
+
+## 2026-06-28 TUI File Split And Actions
+
+Plan:
+
+- Split TUI code into app, actions, screens, widgets, and style modules.
+- Replace Flash/Pro buttons with `/model [flash|pro]`.
+- Move token usage above the input.
+- Add `/sidebar 12-40` for adjustable sidebar width.
+- Add confirmed session deletion and confirmed conversation-turn deletion.
+- Add message mouse actions: left-click copy, double-click edit, right-click
+  toggle context inclusion, Ctrl+right-click delete, Shift+right-click menu.
+- Bind `Ctrl+C` to clear input and `Ctrl+Z` to restore the last cleared input.
+
+## 2026-06-28 CLI Session Persistence
+
+Plan:
+
+- Keep one-shot CLI and piped calls stateless for request context.
+- After a successful one-shot response, create a new persistent session containing
+  the current user request, assistant response, selected model, and token usage.
+- Ensure those sessions are visible in the TUI sidebar.

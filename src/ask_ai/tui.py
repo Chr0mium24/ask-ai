@@ -1,22 +1,16 @@
 from __future__ import annotations
 
-import time
 from collections.abc import Callable
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
-from textual.message import Message as TextualMessage
-from textual.screen import ModalScreen
 from textual.widgets import (
     Button,
     Input,
     Label,
-    ListItem,
     ListView,
-    Markdown,
     SelectionList,
-    TextArea,
 )
 
 from ask_ai.client import (
@@ -28,187 +22,19 @@ from ask_ai.client import (
     DeepSeekError,
     ModelKey,
 )
-from ask_ai.sessions import ChatMessage, ChatSession, SessionStore
+from ask_ai.sessions import SessionStore
+from ask_ai.tui_actions import AskActionsMixin
+from ask_ai.tui_styles import APP_CSS
+from ask_ai.tui_widgets import MessageBubble, SessionItem
 
 
-class SessionItem(ListItem):
-    def __init__(self, session: ChatSession) -> None:
-        super().__init__(Label(session.title), classes="session-item")
-        self.session_id = session.id
-
-
-class MessageBubble(Markdown):
-    class EditRequested(TextualMessage):
-        def __init__(self, message_id: str) -> None:
-            super().__init__()
-            self.message_id = message_id
-
-    def __init__(self, message: ChatMessage) -> None:
-        classes = f"message {message.role}"
-        if not message.included:
-            classes += " ignored"
-        super().__init__(message.content, classes=classes)
-        self.message_id = message.id
-        self._last_click_at = 0.0
-
-    def on_click(self) -> None:
-        now = time.monotonic()
-        if now - self._last_click_at <= 0.45:
-            self.post_message(self.EditRequested(self.message_id))
-        self._last_click_at = now
-
-
-class EditMessageScreen(ModalScreen[str | None]):
-    CSS = """
-    EditMessageScreen {
-        align: center middle;
-    }
-
-    #edit-dialog {
-        width: 70%;
-        height: 60%;
-        max-width: 100;
-        background: $surface;
-        border: solid $primary;
-        padding: 1;
-    }
-
-    #edit-body {
-        height: 1fr;
-    }
-
-    #edit-actions {
-        height: 3;
-        align-horizontal: right;
-    }
-    """
-
-    BINDINGS = [
-        ("escape", "cancel", "Cancel"),
-        ("ctrl+s", "save", "Save"),
-    ]
-
-    def __init__(self, content: str) -> None:
-        super().__init__()
-        self.content = content
-
-    def compose(self) -> ComposeResult:
-        with Vertical(id="edit-dialog"):
-            yield TextArea(
-                self.content,
-                id="edit-body",
-                show_line_numbers=False,
-                soft_wrap=True,
-            )
-            with Horizontal(id="edit-actions"):
-                yield Button("Cancel", id="cancel")
-                yield Button("Save", variant="primary", id="save")
-
-    def on_mount(self) -> None:
-        self.query_one("#edit-body", TextArea).focus()
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "save":
-            self.action_save()
-        else:
-            self.action_cancel()
-
-    def action_save(self) -> None:
-        self.dismiss(self.query_one("#edit-body", TextArea).text)
-
-    def action_cancel(self) -> None:
-        self.dismiss(None)
-
-
-class AskApp(App[None]):
-    CSS = """
-    Screen {
-        layout: vertical;
-    }
-
-    #body {
-        height: 1fr;
-    }
-
-    #sidebar {
-        width: 22;
-        min-width: 16;
-        border-right: solid $primary;
-    }
-
-    #new-session {
-        height: 3;
-        width: 100%;
-    }
-
-    #sessions {
-        height: 1fr;
-    }
-
-    .session-item {
-        height: 1;
-    }
-
-    #main {
-        width: 1fr;
-    }
-
-    #transcript {
-        height: 1fr;
-        padding: 1;
-    }
-
-    #manage-list {
-        height: 1fr;
-        padding: 1;
-    }
-
-    .message {
-        margin-bottom: 1;
-        padding: 0 1;
-    }
-
-    .user {
-        border-left: heavy $accent;
-    }
-
-    .assistant {
-        border-left: heavy $success;
-    }
-
-    .ignored {
-        color: $text-muted;
-        border-left: heavy gray;
-    }
-
-    .status {
-        color: $text-muted;
-        padding: 0 1;
-    }
-
-    #composer {
-        height: 3;
-    }
-
-    .model-button {
-        width: 8;
-    }
-
-    #token-usage {
-        width: 27;
-        color: $text-muted;
-        padding: 0 1;
-        content-align: center middle;
-    }
-
-    #prompt {
-        height: 3;
-        width: 1fr;
-    }
-    """
+class AskApp(AskActionsMixin, App[None]):
+    CSS = APP_CSS
 
     BINDINGS = [
         Binding("tab", "toggle_mode", "Toggle mode", show=False, priority=True),
+        Binding("ctrl+c", "clear_prompt", "Clear prompt", show=False, priority=True),
+        Binding("ctrl+z", "restore_prompt", "Restore prompt", show=False, priority=True),
     ]
 
     def __init__(
@@ -226,43 +52,61 @@ class AskApp(App[None]):
         self.model: ModelKey = "flash"
         self.pending = False
         self.manage_mode = False
+        self.sidebar_width = 20
+        self.last_cleared_prompt = ""
 
     def compose(self) -> ComposeResult:
         with Horizontal(id="body"):
             with Vertical(id="sidebar"):
-                yield Button("New", id="new-session")
+                with Horizontal(id="session-actions"):
+                    yield Button("New", id="new-session")
+                    yield Button("Del", variant="error", id="delete-session")
                 yield ListView(id="sessions")
             with Vertical(id="main"):
                 yield VerticalScroll(id="transcript")
                 yield SelectionList[str](id="manage-list")
-                with Horizontal(id="composer"):
-                    yield Button("Flash", id="model-flash", classes="model-button")
-                    yield Button("Pro", id="model-pro", classes="model-button")
-                    yield Label("", id="token-usage")
-                    yield Input(placeholder="Message or /clear /quit", id="prompt")
+                yield Label("", id="token-usage")
+                yield Input(placeholder="Message or /model /clear /quit", id="prompt")
 
     async def on_mount(self) -> None:
         await self._render_sessions()
         await self._render_active_view()
-        self._render_model_buttons()
         self.query_one("#prompt", Input).focus()
 
     async def action_toggle_mode(self) -> None:
         self.manage_mode = not self.manage_mode
         await self._render_active_view()
 
+    def action_clear_prompt(self) -> None:
+        if self.screen.id != "_default":
+            return
+
+        prompt = self.query_one("#prompt", Input)
+        if not prompt.value:
+            return
+
+        self.last_cleared_prompt = prompt.value
+        prompt.value = ""
+        prompt.focus()
+
+    def action_restore_prompt(self) -> None:
+        if self.screen.id != "_default" or not self.last_cleared_prompt:
+            return
+
+        prompt = self.query_one("#prompt", Input)
+        if prompt.value:
+            return
+
+        prompt.value = self.last_cleared_prompt
+        prompt.focus()
+
     async def on_button_pressed(self, event: Button.Pressed) -> None:
         button_id = event.button.id
         if button_id == "new-session":
             await self._new_session()
             return
-        if button_id == "model-flash":
-            self.model = "flash"
-            self._render_model_buttons()
-            return
-        if button_id == "model-pro":
-            self.model = "pro"
-            self._render_model_buttons()
+        if button_id == "delete-session":
+            self._confirm_delete_session(self.session.id)
             return
 
     async def on_list_view_selected(self, event: ListView.Selected) -> None:
@@ -307,38 +151,11 @@ class AskApp(App[None]):
             self.session.set_turn_included(summary.turn_id, summary.turn_id in selected)
         self.store.save(self.session)
 
-    async def on_message_bubble_edit_requested(
-        self,
-        event: MessageBubble.EditRequested,
-    ) -> None:
-        message = self.session.get_message(event.message_id)
-        if message is None:
-            return
-
-        self.push_screen(
-            EditMessageScreen(message.content),
-            callback=lambda updated: self._queue_message_edit(
-                event.message_id,
-                updated,
-            ),
-        )
-
-    def _queue_message_edit(self, message_id: str, updated: str | None) -> None:
-        if updated is None:
-            return
-        self.run_worker(
-            self._finish_message_edit(message_id, updated),
-            exit_on_error=False,
-        )
-
-    async def _finish_message_edit(self, message_id: str, updated: str) -> None:
-        self.session.update_message(message_id, updated)
-        self.store.save(self.session)
-        await self._render_sessions()
-        await self._render_active_view()
-
     async def _handle_command(self, command: str) -> None:
-        if command == "/clear":
+        parts = command.split()
+        name = parts[0]
+
+        if name == "/clear":
             self.session.clear()
             self.store.save(self.session)
             self.manage_mode = False
@@ -346,15 +163,54 @@ class AskApp(App[None]):
             await self._render_active_view()
             return
 
-        if command == "/quit":
+        if name == "/quit":
             self.exit()
             return
 
-        if command == "/new":
+        if name == "/new":
             await self._new_session()
             return
 
+        if name == "/model":
+            await self._set_model(parts[1:])
+            return
+
+        if name == "/sidebar":
+            await self._set_sidebar_width(parts[1:])
+            return
+
+        if name == "/delete-session":
+            self._confirm_delete_session(self.session.id)
+            return
+
         await self._append_status(f"unknown command: {command}")
+
+    async def _set_model(self, args: list[str]) -> None:
+        if not args:
+            self.model = "pro" if self.model == "flash" else "flash"
+        elif len(args) == 1 and args[0] in MODEL_LABELS:
+            self.model = args[0]  # type: ignore[assignment]
+        else:
+            await self._append_status("usage: /model [flash|pro]")
+            return
+
+        await self._append_status(f"model: {MODEL_LABELS[self.model]}")
+        self._render_token_usage()
+
+    async def _set_sidebar_width(self, args: list[str]) -> None:
+        if len(args) != 1:
+            await self._append_status(f"sidebar width: {self.sidebar_width}")
+            return
+
+        try:
+            width = int(args[0])
+        except ValueError:
+            await self._append_status("usage: /sidebar 12-40")
+            return
+
+        self.sidebar_width = max(12, min(40, width))
+        self.query_one("#sidebar", Vertical).styles.width = self.sidebar_width
+        await self._append_status(f"sidebar width: {self.sidebar_width}")
 
     async def _send_prompt(self, prompt: str) -> None:
         input_widget = self.query_one("#prompt", Input)
@@ -466,18 +322,13 @@ class AskApp(App[None]):
         transcript.scroll_end(animate=False)
         return widget
 
-    def _render_model_buttons(self) -> None:
-        flash = self.query_one("#model-flash", Button)
-        pro = self.query_one("#model-pro", Button)
-        flash.variant = "primary" if self.model == "flash" else "default"
-        pro.variant = "primary" if self.model == "pro" else "default"
-
     def _render_token_usage(self) -> None:
         usage = self.session.token_usage_totals()
         label = self.query_one("#token-usage", Label)
+        model_label = self.model
         if usage.total_tokens:
             label.update(
-                f"tok {usage.total_tokens} in {usage.prompt_tokens} out {usage.completion_tokens}"
+                f"model {model_label} · tok {usage.total_tokens} · in {usage.prompt_tokens} · out {usage.completion_tokens}"
             )
         else:
-            label.update("tok 0")
+            label.update(f"model {model_label} · tok 0")
