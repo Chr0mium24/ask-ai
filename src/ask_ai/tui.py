@@ -25,7 +25,7 @@ from ask_ai.client import (
 from ask_ai.sessions import SessionStore
 from ask_ai.tui_actions import AskActionsMixin
 from ask_ai.tui_styles import APP_CSS
-from ask_ai.tui_widgets import MessageBubble, SessionItem
+from ask_ai.tui_widgets import MessageBubble, SessionItem, should_collapse
 
 
 class AskApp(AskActionsMixin, App[None]):
@@ -54,6 +54,7 @@ class AskApp(AskActionsMixin, App[None]):
         self.manage_mode = False
         self.sidebar_width = 20
         self.last_cleared_prompt = ""
+        self.expanded_messages: set[str] = set()
 
     def compose(self) -> ComposeResult:
         with Horizontal(id="body"):
@@ -121,6 +122,7 @@ class AskApp(AskActionsMixin, App[None]):
 
         self.session = loaded
         self.manage_mode = False
+        self.expanded_messages.clear()
         await self._render_sessions()
         await self._render_active_view()
         self.query_one("#prompt", Input).focus()
@@ -157,6 +159,7 @@ class AskApp(AskActionsMixin, App[None]):
 
         if name == "/clear":
             self.session.clear()
+            self.expanded_messages.clear()
             self.store.save(self.session)
             self.manage_mode = False
             await self._render_sessions()
@@ -272,6 +275,7 @@ class AskApp(AskActionsMixin, App[None]):
     async def _new_session(self) -> None:
         self.session = self.store.create()
         self.manage_mode = False
+        self.expanded_messages.clear()
         await self._render_sessions()
         await self._render_active_view()
         self.query_one("#prompt", Input).focus()
@@ -301,7 +305,11 @@ class AskApp(AskActionsMixin, App[None]):
         transcript = self.query_one("#transcript", VerticalScroll)
         await transcript.remove_children()
         for message in self.session.messages:
-            await transcript.mount(MessageBubble(message))
+            collapsed = (
+                should_collapse(message.content)
+                and message.id not in self.expanded_messages
+            )
+            await transcript.mount(MessageBubble(message, collapsed=collapsed))
         transcript.scroll_end(animate=False)
         self._render_token_usage()
 

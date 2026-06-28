@@ -107,3 +107,10 @@
 - One-shot persistence test with fake client and temporary `ASK_DATA_DIR`:
   passed; saved a new session with user content, assistant content, model, and
   token usage without reusing existing history.
+
+### 2026-06-28 long message collapse
+
+- `uv run python -m compileall src`: passed.
+- Collapse regression with temporary `ASK_DATA_DIR`: passed; long messages
+  rendered collapsed by default, Shift+left-click expanded them, explicit toggle
+  collapsed them again, and left-click copied the full original content.

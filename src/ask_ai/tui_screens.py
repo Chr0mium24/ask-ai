@@ -151,12 +151,13 @@ class MessageActionScreen(ModalScreen[MessageAction | None]):
         with Vertical(id="message-menu"):
             yield Button("Copy", id="copy")
             yield Button("Edit", id="edit")
+            yield Button("Expand / collapse", id="collapse")
             yield Button("Toggle context", id="toggle")
             yield Button("Delete", variant="error", id="delete")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         action = event.button.id
-        if action in {"copy", "edit", "toggle", "delete"}:
+        if action in {"copy", "edit", "toggle", "delete", "collapse"}:
             self.dismiss(action)  # type: ignore[arg-type]
 
     def action_cancel(self) -> None:

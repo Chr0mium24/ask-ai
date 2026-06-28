@@ -53,6 +53,7 @@ Message mouse actions:
 
 - Left click copies a message.
 - Double-click edits a message.
+- Shift+left click expands or collapses a long message.
 - Right click toggles whether that turn is included in context.
 - Ctrl+right click deletes that turn after confirmation.
 - Shift+right click opens the message action menu.
@@ -60,6 +61,8 @@ Message mouse actions:
 The left pane has `New` and `Del` buttons for session creation and deletion.
 Token usage is shown above the input. `Ctrl+C` clears the input without exiting;
 `Ctrl+Z` restores the last cleared input.
+Long messages are collapsed by default in the TUI; this does not change the saved
+content or model context.
 
 One-shot prompt without saving context:
 

@@ -28,6 +28,8 @@ Build a lightweight DeepSeek assistant for fish/shell usage.
 - Left-clicking a message copies it; right-click toggles context inclusion;
   Ctrl+right-click deletes the turn after confirmation; Shift+right-click opens
   a message action menu.
+- Long messages are collapsed by default; Shift+left-click or the message menu
+  toggles expansion without changing saved content or context.
 - Session deletion requires confirmation.
 - `Ctrl+C` clears the input, and `Ctrl+Z` restores the last cleared input.
 - Current session token usage is shown above the input.
@@ -125,3 +127,12 @@ Plan:
 - After a successful one-shot response, create a new persistent session containing
   the current user request, assistant response, selected model, and token usage.
 - Ensure those sessions are visible in the TUI sidebar.
+
+## 2026-06-28 Long Message Collapse
+
+Plan:
+
+- Collapse long messages by default in the TUI while preserving full saved
+  content and full context behavior.
+- Use Shift+left-click and the message menu to expand/collapse a message.
+- Keep left-click copy behavior copying the full original content.

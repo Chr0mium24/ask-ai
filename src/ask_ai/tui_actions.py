@@ -35,6 +35,12 @@ class AskActionsMixin:
     ) -> None:
         self._confirm_delete_message_turn(event.message_id)
 
+    async def on_message_bubble_collapse_requested(
+        self,
+        event: MessageBubble.CollapseRequested,
+    ) -> None:
+        await self._toggle_message_collapse(event.message_id)
+
     def on_message_bubble_menu_requested(
         self,
         event: MessageBubble.MenuRequested,
@@ -63,6 +69,12 @@ class AskActionsMixin:
             return
         if action == "delete":
             self._confirm_delete_message_turn(message_id)
+            return
+        if action == "collapse":
+            self.run_worker(
+                self._toggle_message_collapse(message_id),
+                exit_on_error=False,
+            )
             return
 
         self.run_worker(
@@ -93,6 +105,7 @@ class AskActionsMixin:
 
     async def _finish_message_edit(self, message_id: str, updated: str) -> None:
         self.session.update_message(message_id, updated)
+        self.expanded_messages.discard(message_id)
         self.store.save(self.session)
         await self._render_sessions()
         await self._render_active_view()
@@ -140,8 +153,18 @@ class AskActionsMixin:
     async def _finish_delete_message_turn(self, turn_id: str) -> None:
         if self.session.delete_turn(turn_id):
             self.store.save(self.session)
+            self.expanded_messages = {
+                message.id for message in self.session.messages
+            } & self.expanded_messages
             await self._render_sessions()
             await self._render_active_view()
+
+    async def _toggle_message_collapse(self, message_id: str) -> None:
+        if message_id in self.expanded_messages:
+            self.expanded_messages.remove(message_id)
+        else:
+            self.expanded_messages.add(message_id)
+        await self._render_chat()
 
     def _confirm_delete_session(self, session_id: str) -> None:
         self.push_screen(
