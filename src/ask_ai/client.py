@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from typing import Literal, TypedDict
+from typing import Any, Literal, TypedDict
 
 import httpx
 
@@ -36,6 +36,41 @@ class DeepSeekError(RuntimeError):
     pass
 
 
+@dataclass(slots=True, frozen=True)
+class TokenUsage:
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_tokens: int = 0
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any] | None) -> TokenUsage:
+        if data is None:
+            return cls()
+        prompt_tokens = _safe_int(data.get("prompt_tokens"))
+        completion_tokens = _safe_int(data.get("completion_tokens"))
+        total_tokens = _safe_int(data.get("total_tokens"))
+        if total_tokens == 0:
+            total_tokens = prompt_tokens + completion_tokens
+        return cls(
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            total_tokens=total_tokens,
+        )
+
+    def to_dict(self) -> dict[str, int]:
+        return {
+            "prompt_tokens": self.prompt_tokens,
+            "completion_tokens": self.completion_tokens,
+            "total_tokens": self.total_tokens,
+        }
+
+
+@dataclass(slots=True, frozen=True)
+class CompletionResult:
+    content: str
+    usage: TokenUsage = TokenUsage()
+
+
 @dataclass(slots=True)
 class DeepSeekClient:
     api_key: str | None = None
@@ -58,6 +93,20 @@ class DeepSeekClient:
         *,
         system_prompt: str = DEFAULT_SYSTEM_PROMPT,
     ) -> str:
+        result = await self.complete_with_usage(
+            messages,
+            model=model,
+            system_prompt=system_prompt,
+        )
+        return result.content
+
+    async def complete_with_usage(
+        self,
+        messages: list[Message],
+        model: ModelKey = "flash",
+        *,
+        system_prompt: str = DEFAULT_SYSTEM_PROMPT,
+    ) -> CompletionResult:
         if not self.api_key:
             raise DeepSeekError(
                 "No DeepSeek API key found. Run `ask login` or set DEEPSEEK_API_KEY."
@@ -96,12 +145,13 @@ class DeepSeekClient:
         try:
             data = response.json()
             content = data["choices"][0]["message"]["content"]
+            usage = TokenUsage.from_dict(data.get("usage"))
         except (KeyError, IndexError, TypeError, ValueError) as exc:
             raise DeepSeekError("DeepSeek API returned an unexpected response.") from exc
 
         if not isinstance(content, str) or not content.strip():
             raise DeepSeekError("DeepSeek API returned an empty response.")
-        return content.strip()
+        return CompletionResult(content=content.strip(), usage=usage)
 
 
 def build_one_shot_messages(prompt: str, piped_input: str) -> list[Message]:
@@ -154,3 +204,14 @@ def _extract_error_detail(response: httpx.Response) -> str:
         if isinstance(message, str):
             return message
     return str(data)[:500]
+
+
+def _safe_int(value: Any) -> int:
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        try:
+            return int(value)
+        except ValueError:
+            return 0
+    return 0

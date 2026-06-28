@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal, cast
 
-from ask_ai.client import Message, ModelKey
+from ask_ai.client import Message, ModelKey, TokenUsage
 
 DATA_DIR_ENV = "ASK_DATA_DIR"
 SESSION_FILE_SUFFIX = ".json"
@@ -43,6 +43,7 @@ class ChatMessage:
     turn_id: str
     included: bool = True
     model: ModelKey | None = None
+    token_usage: TokenUsage | None = None
     created_at: str = field(default_factory=now_iso)
 
     @classmethod
@@ -55,6 +56,11 @@ class ChatMessage:
         if model not in {"flash", "pro"}:
             model = None
 
+        raw_usage = data.get("token_usage")
+        token_usage = (
+            TokenUsage.from_dict(raw_usage) if isinstance(raw_usage, dict) else None
+        )
+
         return cls(
             id=str(data.get("id") or new_id()),
             role=cast(Role, role),
@@ -62,6 +68,7 @@ class ChatMessage:
             turn_id=str(data.get("turn_id") or new_id()),
             included=bool(data.get("included", True)),
             model=cast(ModelKey | None, model),
+            token_usage=token_usage,
             created_at=str(data.get("created_at") or now_iso()),
         )
 
@@ -73,6 +80,7 @@ class ChatMessage:
             "turn_id": self.turn_id,
             "included": self.included,
             "model": self.model,
+            "token_usage": self.token_usage.to_dict() if self.token_usage else None,
             "created_at": self.created_at,
         }
 
@@ -152,6 +160,7 @@ class ChatSession:
         *,
         turn_id: str,
         model: ModelKey,
+        token_usage: TokenUsage | None = None,
     ) -> None:
         included = self.turn_included(turn_id)
         self.messages.append(
@@ -162,6 +171,7 @@ class ChatSession:
                 turn_id=turn_id,
                 included=included,
                 model=model,
+                token_usage=token_usage,
             )
         )
         self.touch()
@@ -178,6 +188,22 @@ class ChatSession:
             if message.included
         ]
         return included_messages[-limit:]
+
+    def token_usage_totals(self) -> TokenUsage:
+        prompt_tokens = 0
+        completion_tokens = 0
+        total_tokens = 0
+        for message in self.messages:
+            if message.token_usage is None:
+                continue
+            prompt_tokens += message.token_usage.prompt_tokens
+            completion_tokens += message.token_usage.completion_tokens
+            total_tokens += message.token_usage.total_tokens
+        return TokenUsage(
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            total_tokens=total_tokens,
+        )
 
     def set_turn_included(self, turn_id: str, included: bool) -> None:
         for message in self.messages:

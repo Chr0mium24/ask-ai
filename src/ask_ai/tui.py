@@ -4,6 +4,7 @@ import time
 from collections.abc import Callable
 
 from textual.app import App, ComposeResult
+from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.message import Message as TextualMessage
 from textual.screen import ModalScreen
@@ -15,12 +16,11 @@ from textual.widgets import (
     ListView,
     Markdown,
     SelectionList,
-    Tab,
-    Tabs,
     TextArea,
 )
 
 from ask_ai.client import (
+    CompletionResult,
     DEFAULT_BASE_URL,
     DEFAULT_SYSTEM_PROMPT,
     MODEL_LABELS,
@@ -131,9 +131,14 @@ class AskApp(App[None]):
     }
 
     #sidebar {
-        width: 28;
-        min-width: 20;
+        width: 22;
+        min-width: 16;
         border-right: solid $primary;
+    }
+
+    #new-session {
+        height: 3;
+        width: 100%;
     }
 
     #sessions {
@@ -146,10 +151,6 @@ class AskApp(App[None]):
 
     #main {
         width: 1fr;
-    }
-
-    #model-tabs {
-        height: 3;
     }
 
     #transcript {
@@ -185,10 +186,30 @@ class AskApp(App[None]):
         padding: 0 1;
     }
 
-    #prompt {
+    #composer {
         height: 3;
     }
+
+    .model-button {
+        width: 8;
+    }
+
+    #token-usage {
+        width: 27;
+        color: $text-muted;
+        padding: 0 1;
+        content-align: center middle;
+    }
+
+    #prompt {
+        height: 3;
+        width: 1fr;
+    }
     """
+
+    BINDINGS = [
+        Binding("tab", "toggle_mode", "Toggle mode", show=False, priority=True),
+    ]
 
     def __init__(
         self,
@@ -209,21 +230,40 @@ class AskApp(App[None]):
     def compose(self) -> ComposeResult:
         with Horizontal(id="body"):
             with Vertical(id="sidebar"):
+                yield Button("New", id="new-session")
                 yield ListView(id="sessions")
             with Vertical(id="main"):
-                yield Tabs(
-                    Tab("Flash", id="flash"),
-                    Tab("Pro", id="pro"),
-                    id="model-tabs",
-                )
                 yield VerticalScroll(id="transcript")
                 yield SelectionList[str](id="manage-list")
-                yield Input(placeholder="Message or /clear /manage /quit", id="prompt")
+                with Horizontal(id="composer"):
+                    yield Button("Flash", id="model-flash", classes="model-button")
+                    yield Button("Pro", id="model-pro", classes="model-button")
+                    yield Label("", id="token-usage")
+                    yield Input(placeholder="Message or /clear /quit", id="prompt")
 
     async def on_mount(self) -> None:
         await self._render_sessions()
         await self._render_active_view()
+        self._render_model_buttons()
         self.query_one("#prompt", Input).focus()
+
+    async def action_toggle_mode(self) -> None:
+        self.manage_mode = not self.manage_mode
+        await self._render_active_view()
+
+    async def on_button_pressed(self, event: Button.Pressed) -> None:
+        button_id = event.button.id
+        if button_id == "new-session":
+            await self._new_session()
+            return
+        if button_id == "model-flash":
+            self.model = "flash"
+            self._render_model_buttons()
+            return
+        if button_id == "model-pro":
+            self.model = "pro"
+            self._render_model_buttons()
+            return
 
     async def on_list_view_selected(self, event: ListView.Selected) -> None:
         item = event.item
@@ -240,11 +280,6 @@ class AskApp(App[None]):
         await self._render_sessions()
         await self._render_active_view()
         self.query_one("#prompt", Input).focus()
-
-    def on_tabs_tab_activated(self, event: Tabs.TabActivated) -> None:
-        tab_id = event.tab.id
-        if tab_id in MODEL_LABELS:
-            self.model = tab_id  # type: ignore[assignment]
 
     async def on_input_submitted(self, event: Input.Submitted) -> None:
         prompt = event.value.strip()
@@ -280,11 +315,24 @@ class AskApp(App[None]):
         if message is None:
             return
 
-        updated = await self.push_screen_wait(EditMessageScreen(message.content))
+        self.push_screen(
+            EditMessageScreen(message.content),
+            callback=lambda updated: self._queue_message_edit(
+                event.message_id,
+                updated,
+            ),
+        )
+
+    def _queue_message_edit(self, message_id: str, updated: str | None) -> None:
         if updated is None:
             return
+        self.run_worker(
+            self._finish_message_edit(message_id, updated),
+            exit_on_error=False,
+        )
 
-        self.session.update_message(event.message_id, updated)
+    async def _finish_message_edit(self, message_id: str, updated: str) -> None:
+        self.session.update_message(message_id, updated)
         self.store.save(self.session)
         await self._render_sessions()
         await self._render_active_view()
@@ -302,16 +350,8 @@ class AskApp(App[None]):
             self.exit()
             return
 
-        if command == "/manage":
-            self.manage_mode = not self.manage_mode
-            await self._render_active_view()
-            return
-
         if command == "/new":
-            self.session = self.store.create()
-            self.manage_mode = False
-            await self._render_sessions()
-            await self._render_active_view()
+            await self._new_session()
             return
 
         await self._append_status(f"unknown command: {command}")
@@ -329,15 +369,16 @@ class AskApp(App[None]):
         status = await self._append_status(f"asking {MODEL_LABELS[request_model]}...")
 
         try:
-            answer = await self.client.complete(
+            result = await self._complete_with_usage(
                 self.session.context_messages(limit=30),
                 model=request_model,
                 system_prompt=self.system_prompt,
             )
             self.session.add_assistant_message(
-                answer,
+                result.content,
                 turn_id=turn_id,
                 model=request_model,
+                token_usage=result.usage,
             )
             self.store.save(self.session)
             await status.remove()
@@ -349,6 +390,35 @@ class AskApp(App[None]):
             input_widget.disabled = False
             input_widget.focus()
             self.pending = False
+
+    async def _complete_with_usage(
+        self,
+        messages: list[dict[str, str]],
+        *,
+        model: ModelKey,
+        system_prompt: str,
+    ) -> CompletionResult:
+        complete_with_usage = getattr(self.client, "complete_with_usage", None)
+        if complete_with_usage is not None:
+            return await complete_with_usage(
+                messages,
+                model=model,
+                system_prompt=system_prompt,
+            )
+
+        content = await self.client.complete(
+            messages,
+            model=model,
+            system_prompt=system_prompt,
+        )
+        return CompletionResult(content=content)
+
+    async def _new_session(self) -> None:
+        self.session = self.store.create()
+        self.manage_mode = False
+        await self._render_sessions()
+        await self._render_active_view()
+        self.query_one("#prompt", Input).focus()
 
     async def _render_sessions(self) -> None:
         sessions = self.store.list_sessions()
@@ -369,6 +439,7 @@ class AskApp(App[None]):
             await self._render_manage()
         else:
             await self._render_chat()
+        self._render_token_usage()
 
     async def _render_chat(self) -> None:
         transcript = self.query_one("#transcript", VerticalScroll)
@@ -376,6 +447,7 @@ class AskApp(App[None]):
         for message in self.session.messages:
             await transcript.mount(MessageBubble(message))
         transcript.scroll_end(animate=False)
+        self._render_token_usage()
 
     async def _render_manage(self) -> None:
         manage_list = self.query_one("#manage-list", SelectionList)
@@ -393,3 +465,19 @@ class AskApp(App[None]):
         await transcript.mount(widget)
         transcript.scroll_end(animate=False)
         return widget
+
+    def _render_model_buttons(self) -> None:
+        flash = self.query_one("#model-flash", Button)
+        pro = self.query_one("#model-pro", Button)
+        flash.variant = "primary" if self.model == "flash" else "default"
+        pro.variant = "primary" if self.model == "pro" else "default"
+
+    def _render_token_usage(self) -> None:
+        usage = self.session.token_usage_totals()
+        label = self.query_one("#token-usage", Label)
+        if usage.total_tokens:
+            label.update(
+                f"tok {usage.total_tokens} in {usage.prompt_tokens} out {usage.completion_tokens}"
+            )
+        else:
+            label.update("tok 0")

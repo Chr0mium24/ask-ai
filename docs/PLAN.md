@@ -13,13 +13,17 @@ Build a lightweight DeepSeek assistant for fish/shell usage.
 - One-shot mode is stateless by design.
 - Only the TUI keeps multi-turn context, and that context is saved in persistent
   session files.
-- The TUI provides tabs for model switching between `deepseek-v4-flash` and `deepseek-v4-pro`.
+- The TUI provides bottom buttons for switching between `deepseek-v4-flash` and
+  `deepseek-v4-pro`.
 - The TUI shows all saved sessions in a left sidebar and supports switching
   between them.
-- The TUI supports `/clear`, `/quit`, and `/manage`.
-- `/manage` shows conversation-pair checkboxes. Unchecked pairs remain visible
+- The TUI supports `/clear` and `/quit`.
+- `Tab` toggles between chat and manage mode.
+- Manage mode shows conversation-pair checkboxes. Unchecked pairs remain visible
   but are excluded from future model context and rendered as dimmed messages.
 - Double-clicking a message opens an editor for that message.
+- The bottom composer shows Flash/Pro model buttons and current session token
+  usage.
 - `ask login` saves a DeepSeek API key to `~/.config/ask-ai/config.json` with
   `0600` permissions.
 - `ask logout` deletes the saved API key.
@@ -71,8 +75,20 @@ Plan:
 - Add JSON-backed session storage under `~/.local/share/ask-ai/sessions`.
 - Replace the single-column chat with a compact session sidebar plus main chat.
 - Remove Header/Footer and message role labels from the chat UI.
-- Preserve model tabs and one-shot CLI behavior.
-- Implement `/clear`, `/quit`, `/manage`, and a hidden `/new` session command.
+- Preserve model switching and one-shot CLI behavior.
+- Implement `/clear`, `/quit`, a visible `New` session button, and `Tab` for
+  manage mode.
 - Use a checklist manage view for conversation pairs and persist inclusion state.
 - Render excluded messages as dimmed in the chat view.
 - Add double-click editing for saved messages.
+
+## 2026-06-28 TUI Controls Update
+
+Plan:
+
+- Replace `/manage` with a global `Tab` key mode switch.
+- Move Flash/Pro selection to the bottom composer.
+- Add current session token usage in the bottom composer.
+- Narrow the left sidebar and add a visible `New` session button.
+- Replace `push_screen_wait()` editing with a callback-based modal flow so edits
+  work from normal UI event handlers.

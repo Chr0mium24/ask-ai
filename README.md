@@ -34,17 +34,21 @@ ask
 TUI sessions are saved under `~/.local/share/ask-ai/sessions`. The left pane
 lists saved sessions; selecting one switches the active chat.
 
-TUI commands:
+TUI controls:
 
 ```text
+Tab
 /clear
-/manage
 /quit
 ```
 
-`/manage` opens a checklist of conversation pairs. Checked pairs are included in
+`Tab` switches between chat and manage mode. Manage mode shows a checklist of
+conversation pairs. Checked pairs are included in
 future context; unchecked pairs stay visible in the session but are dimmed and
 ignored by future requests. Double-click a message in the chat to edit it.
+
+The left pane has a `New` button for creating a session. The bottom bar contains
+Flash/Pro model buttons and token usage for the current session.
 
 One-shot prompt without saving context:
 

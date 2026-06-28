@@ -68,3 +68,21 @@
 - TUI fake client error path: passed; failed requests leave the input usable and
   show the error status without a secondary UI exception.
 - TUI no-argument dispatch regression: passed with monkeypatched `AskApp.run()`.
+
+### 2026-06-28 TUI controls update
+
+- `uv run python -m compileall src`: passed.
+- `uv run ask --help`: passed.
+- `uv run ask --version`: passed and returned `0.1.0`.
+- `TokenUsage.from_dict()` with missing `total_tokens`: passed and fell back to
+  prompt plus completion tokens.
+- Missing key one-shot path with empty `ASK_CONFIG_DIR`: passed.
+- Session token usage persistence with temporary `ASK_DATA_DIR`: passed.
+- TUI controls regression with temporary `ASK_DATA_DIR`: passed; bottom Flash/Pro
+  buttons switched models, `New` created a session, `Tab` toggled manage mode,
+  unchecked turns stayed out of context, token usage updated after a fake
+  response, and callback-based editing updated a dimmed message without
+  `NoActiveWorker`.
+- TUI fake client error path: passed.
+- `fish -ic 'type -q ask; and ask --version'`: passed and returned `0.1.0`.
+- TUI no-argument dispatch regression: passed with monkeypatched `AskApp.run()`.
