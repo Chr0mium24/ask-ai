@@ -9,12 +9,10 @@ multi-turn chat.
 uv sync
 ```
 
-For fish, add the command wrapper:
+For fish, install the `ask` wrapper:
 
-```fish
-function ask
-    command uv run --project /home/cr/Codes/ask-ai ask $argv
-end
+```bash
+uv run ask install
 ```
 
 Then set your API key:
@@ -92,6 +90,13 @@ Save or remove the API key:
 ```bash
 ask login
 ask logout
+```
+
+Install or remove the fish wrapper:
+
+```bash
+uv run ask install
+ask uninstall
 ```
 
 `DEEPSEEK_API_KEY` still works and takes precedence over the saved login config.

@@ -36,11 +36,14 @@ Build a lightweight DeepSeek assistant for fish/shell usage.
 - `ask login` saves a DeepSeek API key to `~/.config/ask-ai/config.json` with
   `0600` permissions.
 - `ask logout` deletes the saved API key.
+- `ask install` installs a managed fish wrapper for the source checkout.
+- `ask uninstall` removes that managed fish wrapper.
 
 ## Architecture
 
 - `ask_ai.client`: DeepSeek API client, model mapping, prompt assembly.
 - `ask_ai.cli`: argparse entrypoint and one-shot/TUI dispatch.
+- `ask_ai.install`: managed fish wrapper install and uninstall helpers.
 - `ask_ai.sessions`: persistent session files and context inclusion logic.
 - `ask_ai.tui`: Textual app with session sidebar, transcript, manage view, and
   input.
@@ -147,3 +150,16 @@ Plan:
 - Save responses back to the original session even if the user switches sessions
   while the request is in flight.
 - Restore pending state after both successful and failed requests.
+
+## 2026-06-29 Fish Install And Uninstall
+
+Plan:
+
+- Add local CLI commands `ask install` and `ask uninstall`.
+- Install a managed fish function at `~/.config/fish/functions/ask.fish`.
+- Make the installed function run `uv run --project <project-root> ask $argv`,
+  matching the existing source-checkout workflow.
+- Refuse to overwrite or remove user-owned fish functions unless `--force` is
+  passed.
+- Use `XDG_CONFIG_HOME` when present so install and uninstall can be tested
+  without touching the user's real fish config.

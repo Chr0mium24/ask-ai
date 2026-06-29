@@ -125,3 +125,32 @@
   original session after switching to a new session.
 - Worker error regression: passed; failed requests restored pending state and
   kept the user message in the session.
+
+### 2026-06-29 fish install and uninstall
+
+Planned checks:
+
+- `uv run python -m compileall src`
+- `uv run ask --help`
+- `uv run ask --force hello`
+- `uv run ask install` with temporary `XDG_CONFIG_HOME`
+- `fish -ic 'type -q ask; and ask --version'` with temporary `XDG_CONFIG_HOME`
+- `fish -ic 'ask uninstall'` with temporary `XDG_CONFIG_HOME`
+- Refuse to remove an unmanaged fish function without `--force`.
+
+Results:
+
+- `uv run python -m compileall src`: passed.
+- `uv run ask --help`: passed and listed local commands `ask install`,
+  `ask uninstall`, `ask login`, and `ask logout`.
+- `uv run ask --force hello`: passed as a negative check; exited with code `2`
+  and reported that `--force` is only supported by install and uninstall.
+- Temporary `XDG_CONFIG_HOME` install: passed and wrote a managed
+  `fish/functions/ask.fish` wrapper.
+- Fish autoload check: passed; `fish -ic 'type -q ask; and ask --version'`
+  returned `0.1.0` through the installed wrapper.
+- Fish uninstall check: passed; `fish -ic 'ask uninstall'` removed the managed
+  wrapper.
+- Unmanaged function protection: passed; install and uninstall refused a custom
+  `ask.fish` without `--force`, preserved its contents, then `--force`
+  replaced and removed it.
