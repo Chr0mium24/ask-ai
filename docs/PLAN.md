@@ -136,3 +136,14 @@ Plan:
   content and full context behavior.
 - Use Shift+left-click and the message menu to expand/collapse a message.
 - Keep left-click copy behavior copying the full original content.
+
+## 2026-06-29 Nonblocking TUI Requests
+
+Plan:
+
+- Move DeepSeek API waits out of the input event handler and into a Textual
+  worker.
+- Keep the UI responsive while a response is pending.
+- Save responses back to the original session even if the user switches sessions
+  while the request is in flight.
+- Restore pending state after both successful and failed requests.

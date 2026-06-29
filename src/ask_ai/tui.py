@@ -129,7 +129,7 @@ class AskApp(AskActionsMixin, App[None]):
 
     async def on_input_submitted(self, event: Input.Submitted) -> None:
         prompt = event.value.strip()
-        if not prompt or self.pending:
+        if not prompt:
             return
 
         input_widget = self.query_one("#prompt", Input)
@@ -137,6 +137,10 @@ class AskApp(AskActionsMixin, App[None]):
 
         if prompt.startswith("/"):
             await self._handle_command(prompt)
+            return
+
+        if self.pending:
+            await self._append_status("still waiting for the current answer")
             return
 
         await self._send_prompt(prompt)
@@ -217,38 +221,80 @@ class AskApp(AskActionsMixin, App[None]):
 
     async def _send_prompt(self, prompt: str) -> None:
         input_widget = self.query_one("#prompt", Input)
-        input_widget.disabled = True
         self.pending = True
         request_model = self.model
+        request_session_id = self.session.id
 
         turn_id = self.session.add_user_message(prompt)
         self.store.save(self.session)
+        messages = self.session.context_messages(limit=30)
         await self._render_sessions()
         await self._render_chat()
         status = await self._append_status(f"asking {MODEL_LABELS[request_model]}...")
+        input_widget.focus()
 
+        self.run_worker(
+            self._complete_prompt_request(
+                session_id=request_session_id,
+                turn_id=turn_id,
+                messages=messages,
+                model=request_model,
+                status=status,
+            ),
+            name=f"deepseek-{turn_id}",
+            exit_on_error=False,
+        )
+
+    async def _complete_prompt_request(
+        self,
+        *,
+        session_id: str,
+        turn_id: str,
+        messages: list[dict[str, str]],
+        model: ModelKey,
+        status: Label,
+    ) -> None:
         try:
             result = await self._complete_with_usage(
-                self.session.context_messages(limit=30),
-                model=request_model,
+                messages,
+                model=model,
                 system_prompt=self.system_prompt,
             )
-            self.session.add_assistant_message(
-                result.content,
-                turn_id=turn_id,
-                model=request_model,
-                token_usage=result.usage,
-            )
-            self.store.save(self.session)
-            await status.remove()
-            await self._render_sessions()
-            await self._render_chat()
         except DeepSeekError as exc:
-            status.update(f"error: {exc}")
+            if status.is_mounted:
+                status.update(f"error: {exc}")
         finally:
-            input_widget.disabled = False
-            input_widget.focus()
             self.pending = False
+            self.query_one("#prompt", Input).focus()
+
+        if "result" not in locals():
+            return
+
+        target_session = (
+            self.session if self.session.id == session_id else self.store.load(session_id)
+        )
+        if target_session is None:
+            return
+
+        if not any(message.turn_id == turn_id for message in target_session.messages):
+            if status.is_mounted:
+                await status.remove()
+            return
+
+        target_session.add_assistant_message(
+            result.content,
+            turn_id=turn_id,
+            model=model,
+            token_usage=result.usage,
+        )
+        self.store.save(target_session)
+
+        if status.is_mounted:
+            await status.remove()
+        await self._render_sessions()
+        if self.session.id == session_id:
+            self.session = target_session
+            await self._render_chat()
 
     async def _complete_with_usage(
         self,

@@ -114,3 +114,14 @@
 - Collapse regression with temporary `ASK_DATA_DIR`: passed; long messages
   rendered collapsed by default, Shift+left-click expanded them, explicit toggle
   collapsed them again, and left-click copied the full original content.
+
+### 2026-06-29 nonblocking TUI requests
+
+- `uv run python -m compileall src`: passed.
+- Slow-client worker regression with temporary `ASK_DATA_DIR`: passed; while the
+  fake model was waiting, the TUI toggled manage mode and changed `/model`
+  without waiting for the response.
+- Session-switch worker regression: passed; a response completed into the
+  original session after switching to a new session.
+- Worker error regression: passed; failed requests restored pending state and
+  kept the user message in the session.

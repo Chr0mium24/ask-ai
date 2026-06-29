@@ -63,6 +63,8 @@ Token usage is shown above the input. `Ctrl+C` clears the input without exiting;
 `Ctrl+Z` restores the last cleared input.
 Long messages are collapsed by default in the TUI; this does not change the saved
 content or model context.
+While the model is answering, the TUI keeps handling navigation, session
+switching, folding, and commands.
 
 One-shot prompt without saving context:
 
